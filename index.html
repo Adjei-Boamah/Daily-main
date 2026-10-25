@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>my day</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 480px; margin: 20px auto; padding: 0 16px; }
+        .row { display: flex; gap: 8px; margin-bottom: 8px; }
+        input { padding: 8px; font-size: 16px; }
+        #item { flex: 2; min-width: 0; }
+        #amount { flex: 1; min-width: 0; }
+        button { padding: 8px 12px; font-size: 16px; cursor: pointer; }
+        li { margin: 6px 0; }
+        li button { font-size: 12px; padding: 2px 6px; margin-left: 8px; }
+        #total { font-weight: bold; font-size: 18px; }
+        h2 { margin-top: 32px; }
+        #history { list-style: none; padding: 0; }
+        #history li { display: flex; justify-content: space-between; padding: 8px; border-bottom: 1px solid #ddd; cursor: pointer; }
+        #history li.active { background: #eef; }
+    </style>
+</head>
+<body>
+    <h1>MY DAILY EXPENSES</h1>
+
+    <label>Day: <input id="day" type="date"></label>
+    <button id="todayBtn">Today</button>
+
+    <div class="row" style="margin-top:12px">
+        <input id="item" type="text" placeholder="What did you spend on?">
+        <input id="amount" type="number" min="0" step="0.01" placeholder="GHS">
+    </div>
+    <button id="add">ADD EXPENSE</button>
+
+    <p id="date"></p>
+    <ol id="list"></ol>
+    <p id="total"></p>
+
+    <h2>Past days</h2>
+    <ul id="history"></ul>
+    <p id="grand"></p>
+
+    <script>
+        const PREFIX = 'expenses-';
+        const dayInput = document.getElementById('day');
+        const list = document.getElementById('list');
+        const totalEl = document.getElementById('total');
+        const itemInput = document.getElementById('item');
+        const amountInput = document.getElementById('amount');
+        const historyEl = document.getElementById('history');
+
+        function todayStr() {
+            const d = new Date();
+            const m = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return d.getFullYear() + '-' + m + '-' + day;
+        }
+
+        let current = todayStr();
+        dayInput.value = current;
+
+        function load(date) {
+            try { return JSON.parse(localStorage.getItem(PREFIX + date)) || []; } catch (e) { return []; }
+        }
+        function save(date, data) {
+            try { localStorage.setItem(PREFIX + date, JSON.stringify(data)); } catch (e) {}
+        }
+        function sum(arr) { return arr.reduce((t, e) => t + e.amount, 0); }
+        function pretty(date) {
+            return new Date(date + 'T00:00:00').toLocaleDateString('en-GB', {
+                weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+            });
+        }
+
+        function renderDay() {
+            const expenses = load(current);
+            document.getElementById('date').textContent = pretty(current);
+            list.innerHTML = '';
+            expenses.forEach((e, i) => {
+                const li = document.createElement('li');
+                li.textContent = e.name + ': GHS ' + e.amount;
+                const del = document.createElement('button');
+                del.textContent = 'x';
+                del.onclick = () => {
+                    const data = load(current);
+                    data.splice(i, 1);
+                    save(current, data);
+                    render();
+                };
+                li.appendChild(del);
+                list.appendChild(li);
+            });
+            totalEl.textContent = 'Total: GHS ' + sum(expenses);
+        }
+
+        function renderHistory() {
+            historyEl.innerHTML = '';
+            const dates = [];
+            try {
+                for (let i = 0; i < localStorage.length; i++) {
+                    const k = localStorage.key(i);
+                    if (k.startsWith(PREFIX)) dates.push(k.slice(PREFIX.length));
+                }
+            } catch (e) {}
+            dates.sort().reverse();
+            let grand = 0;
+            dates.forEach(d => {
+                const t = sum(load(d));
+                grand += t;
+                const li = document.createElement('li');
+                if (d === current) li.className = 'active';
+                li.innerHTML = '<span>' + pretty(d) + '</span><strong>GHS ' + t + '</strong>';
+                li.onclick = () => { current = d; dayInput.value = d; render(); };
+                historyEl.appendChild(li);
+            });
+            document.getElementById('grand').textContent =
+                dates.length ? 'All days total: GHS ' + grand : 'No saved days yet.';
+        }
+
+        function render() { renderDay(); renderHistory(); }
+
+        function addExpense() {
+            const name = itemInput.value.trim();
+            const amount = parseFloat(amountInput.value);
+            if (!name || isNaN(amount) || amount < 0) return;
+            const data = load(current);
+            data.push({ name, amount });
+            save(current, data);
+            itemInput.value = '';
+            amountInput.value = '';
+            itemInput.focus();
+            render();
+        }
+
+        document.getElementById('add').onclick = addExpense;
+        amountInput.addEventListener('keydown', e => { if (e.key === 'Enter') addExpense(); });
+        dayInput.onchange = () => { if (dayInput.value) { current = dayInput.value; render(); } };
+        document.getElementById('todayBtn').onclick = () => { current = todayStr(); dayInput.value = current; render(); };
+
+        render();
+    </script>
+</body>
+</html>
